@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+// Condition specifies conditions under which access is granted or denied
+message Condition {
+  string op_name = 1;
+  string key_name = 2;
+  string value = 3;
+}
+
+
+// Statement is a single policy statment about which entities (principals) are
+// allowed or denied access to resources via actions.
+message Statement {
+  enum Effect {
+     ALLOW = 0;
+     DENY = 1;
+  }
+
+  Effect effect = 1;    
+  string principal = 2; // which users, accounts, services, or entities are granted or denied
+                        // access to resources. 
+  string action = 3;    // a string action
+  string resource = 4;  // an arn identified resource (can have wildcards)
+  repeated Condition conditions = 5; // a list of conditions
+}
+
+// A policy is a collection of statements that define who can or cannot access
+// a resource / collection of resources.
+message Policy {
+  repeated Statement statements = 1;
+};
+
+// ComparePoliciesRequest is used to compare two policies.
+message ComparePoliciesRequest {
+  Policy first = 1;
+  Policy second = 2;
+};
+
+message ComparePolicyResponse {
+  enum Result {
+    UNUSED = 0;
+    EQUAL = 1;           // The two policies provide the same level of access.
+    MORE_PERMISSIVE = 2; // The first policy is more permissive than the second
+    LESS_PERMISSIVE = 3; // The first policy is less permissive than the second
+    INCOMPARABLE = 4;    // None of the policies are comparable.
+    UNKNOWN = 5;         // Hornbeam timed out or encountered an error
+  };
+
+  Result result = 1;
+}
+
+service Hornbeam {
+ rpc ComparePolicies(ComparePoliciesRequest) returns (ComparePolicyResponse) {}
+}

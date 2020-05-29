@@ -1,0 +1,6 @@
+pip==20.1.1
+pysmt
+#z3-solver
+#cvc4-solver
+grpcio==1.29.0
+grpcio-tools==1.29.0
