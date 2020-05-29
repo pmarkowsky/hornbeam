@@ -1,0 +1,125 @@
+"""
+translator.py: translates a hornbeam policies to smt formulae
+
+This file contains all of the classes to translate various policies 
+languages to SMT formulae. Each translator provides a translate method.
+"""
+import hornbeam_pb2
+
+from pysmt.shortcuts import Symbol, LE, GE, Int, String, StrLength, StrContains, StrConcat,
+                            StrReplace, And, Equals, Plus, Solver
+from pysmt.typing import INT, STRING
+
+class AWSTranslator(object):
+    def __init__(self):
+        self.symbols = {}
+        self.condition_operators = {
+            "StringEquals": self.strEq,
+        }
+        self.condition_vars = {}
+
+    def getSymbolByName(name):
+        return self.symbols.get(name, None)
+
+    def assignSymbol(name, sym):
+        self.symbols[name] = sym
+
+    def strEq(self, key, value):
+        """
+        strEq encodes a string equivalency constraint on a key.
+        if a symbol for a given key doesn't exists strEq will create the
+        variable
+
+        Args:
+          key: a string name (e.g. aws:sourceVpc)
+          value: a string constant
+
+        Returns:
+          a pysmt instruction.
+        """
+        sym = self.getSymbolByName(key)
+
+        if not sym:
+            sym = Symbol(key, STRING)
+            self.assignSymbol(name, sym)
+
+        And(StrContains(sym, value), StrLength(sym, len(value)))
+
+    def encodeStringConstraint(self, var, str_constraint):
+        """
+        Encode a string constraint against a string variable.
+
+        Args:
+          var: a pysmt.Symbol of type string
+          str_constraint: a constant string (e.g. foo or arn:*)
+
+        Returns:
+          a pysmt Expression 
+        """
+        # check to see if we have wild cards
+        if "*" not in str_constraint and "?" not in str_constraint:
+            return And(StrContains(var, str_constraint), 
+                StrLength(var, len(str_constraint)))
+        else:
+            raise NotImplemented("No support for RegExp and wildcards")
+
+    def encodeCondition(self, cond):
+        """
+        Encode a Condition into smt formulae
+        """
+        key_var_name = cond.key_name + "_exists"
+        existsVar = self.condition_vars.get(key_var_name, None)
+
+        if not existsVar:
+            existsVar = Symbol(key_var_name, BOOL)
+            self.condition_vars[key_var_name] = existsVar
+
+        encoder = self.condition_operators.get(cond.op_name, None)
+        if not encoder:
+            raise NotImplemented("Unsupported condition " + cond.op_name)
+
+        constraints = encoder(cond.key_name, cond.value)
+
+        return And(existsVar, constraints)
+
+    def translate(policy):
+        """
+        args:
+          policy: a hornbeam_pb2.Policy object
+
+        returns:
+          a pysmt.Expr
+        """
+        principal = Symbol("principal", STRING)
+        action = Symbol("action", STRING)
+        resource = Symbol("string", STRING)
+
+        allow_statements = None
+        deny_statements = None
+
+        for statement in policy.Statements:
+            # Create constraints on principal, action, and resource
+            stmt_contraints = self.encodeStringConstraint(principal, 
+                statement.principal)
+            stmt_contraints = And(stmt_contraints, self.encodeStringConstraint(action, 
+                statement.action) 
+            stmt_contraints = And(stmt_constraints, self.encodeStringConstraint(resource, 
+                statement.resource))
+
+            # encode the conditions
+            for cond in statment.conditions:
+                cond_constraints = self.encodeCondition(cond)
+                stmt_constraints = And(stmtConstraints, condConstraints)
+
+            if statement.effect == hornbeam_pb2.Statement.Effect.ALLOW:
+                if not allow_statements:
+                    allow_statements = stmt_contraints
+                else:
+                    allow_statements = Or(allow_statements, stmt_contraints)
+            else:
+                if not deny_statements:
+                    deny_statements = stmt_contraints
+                else:
+                    deny_statements = Or(deny_statements, stmt_contraints)
+
+            return And(allow_statements, Not(deny_statements))
