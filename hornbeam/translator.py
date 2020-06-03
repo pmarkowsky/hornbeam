@@ -6,7 +6,7 @@ languages to SMT formulae. Each translator provides a translate method.
 """
 import hornbeam_pb2
 
-from pysmt.shortcuts import Symbol, LE, GE, Int, String, StrLength, StrContains, StrConcat, StrReplace, And, Equals, Plus, Solver
+from pysmt.shortcuts import Symbol, LE, GE, Int, String, StrLength, StrContains, StrConcat, StrReplace, And, Equals, Plus, Solver, Not
 from pysmt.typing import BOOL, INT, STRING
 
 class AWSTranslator(object):
@@ -39,9 +39,8 @@ class AWSTranslator(object):
         sym = self.getSymbolByName(key)
 
         if not sym:
-            import pdb; pdb.set_trace()
             sym = Symbol(key, STRING)
-            self.assignSymbol(name, sym)
+            self.assignSymbol(key, sym)
 
         return sym.Equals(String(value))
 
@@ -98,7 +97,6 @@ class AWSTranslator(object):
 
         for statement in policy.statements:
             # Create constraints on principal, action, and resource
-            import pdb;pdb.set_trace()
             stmt_constraints = self.encodeStringConstraint(principal, 
                 statement.principal)
             stmt_constraints = And(stmt_constraints, self.encodeStringConstraint(action, 
@@ -109,17 +107,25 @@ class AWSTranslator(object):
             # encode the conditions
             for cond in statement.conditions:
                 cond_constraints = self.encodeCondition(cond)
-                stmt_constraints = And(stmtConstraints, condConstraints)
+                stmt_constraints = And(stmt_constraints, cond_constraints)
 
             if statement.effect == hornbeam_pb2.Statement.Effect.ALLOW:
                 if not allow_statements:
-                    allow_statements = stmt_contraints
+                    allow_statements = stmt_constraints
                 else:
                     allow_statements = Or(allow_statements, stmt_contraints)
             else:
                 if not deny_statements:
-                    deny_statements = stmt_contraints
+                    deny_statements = stmt_constraints
                 else:
                     deny_statements = Or(deny_statements, stmt_contraints)
+
+            # if we don't have any allow statements set them to true
+            if allow_statements is None:
+                allow_statements = Symbol("allow_all", BOOL)
+
+            # if we don't have any deny statements set them to false
+            if deny_statements is None:
+                deny_statements = Symbol("deny_all", BOOL)
 
             return And(allow_statements, Not(deny_statements))
