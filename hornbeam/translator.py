@@ -6,9 +6,8 @@ languages to SMT formulae. Each translator provides a translate method.
 """
 import hornbeam_pb2
 
-from pysmt.shortcuts import Symbol, LE, GE, Int, String, StrLength, StrContains, StrConcat,
-                            StrReplace, And, Equals, Plus, Solver
-from pysmt.typing import INT, STRING
+from pysmt.shortcuts import Symbol, LE, GE, Int, String, StrLength, StrContains, StrConcat, StrReplace, And, Equals, Plus, Solver
+from pysmt.typing import BOOL, INT, STRING
 
 class AWSTranslator(object):
     def __init__(self):
@@ -18,10 +17,10 @@ class AWSTranslator(object):
         }
         self.condition_vars = {}
 
-    def getSymbolByName(name):
+    def getSymbolByName(self, name):
         return self.symbols.get(name, None)
 
-    def assignSymbol(name, sym):
+    def assignSymbol(self, name, sym):
         self.symbols[name] = sym
 
     def strEq(self, key, value):
@@ -35,15 +34,16 @@ class AWSTranslator(object):
           value: a string constant
 
         Returns:
-          a pysmt instruction.
+          a pysmt expression.
         """
         sym = self.getSymbolByName(key)
 
         if not sym:
+            import pdb; pdb.set_trace()
             sym = Symbol(key, STRING)
             self.assignSymbol(name, sym)
 
-        And(StrContains(sym, value), StrLength(sym, len(value)))
+        return sym.Equals(String(value))
 
     def encodeStringConstraint(self, var, str_constraint):
         """
@@ -58,8 +58,7 @@ class AWSTranslator(object):
         """
         # check to see if we have wild cards
         if "*" not in str_constraint and "?" not in str_constraint:
-            return And(StrContains(var, str_constraint), 
-                StrLength(var, len(str_constraint)))
+            return var.Equals(String(str_constraint))
         else:
             raise NotImplemented("No support for RegExp and wildcards")
 
@@ -82,7 +81,7 @@ class AWSTranslator(object):
 
         return And(existsVar, constraints)
 
-    def translate(policy):
+    def translate(self, policy):
         """
         args:
           policy: a hornbeam_pb2.Policy object
@@ -97,17 +96,18 @@ class AWSTranslator(object):
         allow_statements = None
         deny_statements = None
 
-        for statement in policy.Statements:
+        for statement in policy.statements:
             # Create constraints on principal, action, and resource
-            stmt_contraints = self.encodeStringConstraint(principal, 
+            import pdb;pdb.set_trace()
+            stmt_constraints = self.encodeStringConstraint(principal, 
                 statement.principal)
-            stmt_contraints = And(stmt_contraints, self.encodeStringConstraint(action, 
-                statement.action) 
-            stmt_contraints = And(stmt_constraints, self.encodeStringConstraint(resource, 
+            stmt_constraints = And(stmt_constraints, self.encodeStringConstraint(action, 
+                statement.action))
+            stmt_constraints = And(stmt_constraints, self.encodeStringConstraint(resource, 
                 statement.resource))
 
             # encode the conditions
-            for cond in statment.conditions:
+            for cond in statement.conditions:
                 cond_constraints = self.encodeCondition(cond)
                 stmt_constraints = And(stmtConstraints, condConstraints)
 
