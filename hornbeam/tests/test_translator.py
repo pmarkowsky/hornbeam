@@ -8,8 +8,8 @@ def test_translator():
     policy = Policy()
 
     # create
-    statement = Statment()
-    statement.effect = Statment.Effect.ALLOW
+    statement = Statement()
+    statement.effect = Statement.Effect.ALLOW
     statement.principal = "test"
     statement.action = "getAction"
     statement.resource = "arn:CABBOOM"
