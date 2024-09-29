@@ -1,2 +1,2 @@
 # hornbeam
-An automated reasoning system based on AWS Zelkova
+An automated IAM reasoning system based on AWS Zelkova
